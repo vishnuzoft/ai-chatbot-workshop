@@ -22,8 +22,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
   const renderFormattedContent = (content: string) => {
     if (!content && message.isStreaming) {
       return (
-        <div className="leading-relaxed text-sm md:text-[15px]">
-          <span className="inline-block w-1.5 h-4 bg-zinc-700 animate-pulse align-middle rounded-xs" />
+        <div className="py-1 flex items-center">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-zinc-900 animate-pulse" />
         </div>
       );
     }
@@ -92,7 +92,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
             <div key={index} className="whitespace-pre-wrap">
               {part.value}
               {isLastPart && message.isStreaming && (
-                <span className="inline-block w-1.5 h-4 bg-zinc-700 ml-0.5 align-middle animate-pulse rounded-xs" />
+                <span className="inline-block w-2 h-2 rounded-full bg-zinc-900 ml-1.5 align-middle animate-pulse" />
               )}
             </div>
           );

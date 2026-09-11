@@ -85,7 +85,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (isAutoScrollEnabled.current) {
-      scrollToBottom(false);
+      requestAnimationFrame(() => scrollToBottom(false));
     }
   }, [messages]);
 
@@ -276,13 +276,13 @@ export default function ChatPage() {
               messages: s.messages.map((m) =>
                 m.id === assistantMsgId
                   ? {
-                      ...m,
-                      isStreaming: false,
-                      error: true,
-                      content:
-                        m.content ||
-                        `Error connecting to backend (${API_URL}): ${error.message || "Failed to fetch stream"}`,
-                    }
+                    ...m,
+                    isStreaming: false,
+                    error: true,
+                    content:
+                      m.content ||
+                      `Error connecting to backend (${API_URL}): ${error.message || "Failed to fetch stream"}`,
+                  }
                   : m
               ),
             };
