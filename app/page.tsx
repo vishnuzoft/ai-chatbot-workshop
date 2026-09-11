@@ -1,69 +1,335 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useState, useEffect, useRef } from "react";
+import { Message, ChatSession } from "@/types/chat";
+import { streamAgentChat } from "@/services/chatService";
+import { Sidebar } from "@/components/Sidebar";
+import { ChatHeader } from "@/components/ChatHeader";
+import { ChatMessage } from "@/components/ChatMessage";
+import { ChatInput } from "@/components/ChatInput";
+
+const STORAGE_KEY = "workshop_ai_chat_sessions";
+const API_URL = process.env.NEXT_PUBLIC_CHAT_API_URL || "/api/chat";
+
+export default function ChatPage() {
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>("");
+  const [input, setInput] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Initialize or restore sessions from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed: ChatSession[] = JSON.parse(saved);
+        if (parsed.length > 0) {
+          setSessions(parsed);
+          setCurrentSessionId(parsed[0].id);
+          return;
+        }
+      }
+    } catch {
+      // Ignore storage parse error
+    }
+
+    // Default initial session
+    const initialSession: ChatSession = {
+      id: "session-" + Date.now(),
+      title: "New Conversation",
+      messages: [],
+      backendSessionId: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setSessions([initialSession]);
+    setCurrentSessionId(initialSession.id);
+  }, []);
+
+  // Sync sessions to localStorage
+  useEffect(() => {
+    if (sessions.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    }
+  }, [sessions]);
+
+  // Active session object
+  const currentSession = sessions.find((s) => s.id === currentSessionId) || sessions[0];
+  const messages = currentSession?.messages || [];
+
+  // Auto-scroll to bottom of messages
+  const scrollToBottom = (smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: smooth ? "smooth" : "auto",
+      block: "end",
+    });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Create a new session
+  const handleNewChat = () => {
+    if (isLoading) handleStop();
+    const newSession: ChatSession = {
+      id: "session-" + Date.now(),
+      title: "New Conversation",
+      messages: [],
+      backendSessionId: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setSessions((prev) => [newSession, ...prev]);
+    setCurrentSessionId(newSession.id);
+    setInput("");
+  };
+
+  // Delete a specific session
+  const handleDeleteSession = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLoading && id === currentSessionId) {
+      handleStop();
+    }
+    const remaining = sessions.filter((s) => s.id !== id);
+    if (remaining.length === 0) {
+      const freshSession: ChatSession = {
+        id: "session-" + Date.now(),
+        title: "New Conversation",
+        messages: [],
+        backendSessionId: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      setSessions([freshSession]);
+      setCurrentSessionId(freshSession.id);
+    } else {
+      setSessions(remaining);
+      if (id === currentSessionId) {
+        setCurrentSessionId(remaining[0].id);
+      }
+    }
+  };
+
+  // Clear messages in current session
+  const handleClearChat = () => {
+    if (isLoading) handleStop();
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === currentSessionId
+          ? { ...s, messages: [], title: "New Conversation", backendSessionId: null }
+          : s
+      )
+    );
+  };
+
+  // Stop generation / cancel SSE request
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsLoading(false);
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id !== currentSessionId) return s;
+        return {
+          ...s,
+          messages: s.messages.map((m) =>
+            m.isStreaming ? { ...m, isStreaming: false } : m
+          ),
+        };
+      })
+    );
+  };
+
+  /* ========================================================================= */
+  /* WORKSHOP CORE LOGIC: SEND MESSAGE & CONSUME BACKEND SSE STREAM           */
+  /* ========================================================================= */
+  const handleSend = async (overridePrompt?: string) => {
+    const textToSend = (overridePrompt || input).trim();
+    if (!textToSend || isLoading) return;
+
+    setInput("");
+
+    // 1. Prepare User Message
+    const userMsg: Message = {
+      id: "msg-" + Date.now(),
+      role: "user",
+      content: textToSend,
+      createdAt: Date.now(),
+    };
+
+    // 2. Prepare Assistant Placeholder Message for streaming
+    const assistantMsgId = "msg-" + (Date.now() + 1);
+    const assistantMsg: Message = {
+      id: assistantMsgId,
+      role: "assistant",
+      content: "",
+      createdAt: Date.now(),
+      isStreaming: true,
+    };
+
+    // Derive chat title if this is the first user message
+    const isFirstMessage = messages.length === 0;
+    const chatTitle = isFirstMessage
+      ? textToSend.length > 30
+        ? textToSend.substring(0, 30) + "..."
+        : textToSend
+      : currentSession.title;
+
+    // Update session with new user and empty streaming assistant message
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id !== currentSessionId) return s;
+        return {
+          ...s,
+          title: chatTitle,
+          messages: [...s.messages, userMsg, assistantMsg],
+          updatedAt: Date.now(),
+        };
+      })
+    );
+
+    setIsLoading(true);
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    try {
+      // 3. Call streaming service
+      await streamAgentChat({
+        message: textToSend,
+        sessionId: currentSession?.backendSessionId || null,
+        apiUrl: API_URL,
+        signal: abortController.signal,
+
+        // Token callback: append chunk to active assistant message
+        onToken: (chunk: string) => {
+          setSessions((prev) =>
+            prev.map((s) => {
+              if (s.id !== currentSessionId) return s;
+              return {
+                ...s,
+                messages: s.messages.map((m) => {
+                  if (m.id === assistantMsgId) {
+                    return { ...m, content: m.content + chunk };
+                  }
+                  return m;
+                }),
+              };
+            })
+          );
+        },
+
+        // Session callback: retain session_id across turns
+        onSessionId: (newSid: string) => {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === currentSessionId ? { ...s, backendSessionId: newSid } : s
+            )
+          );
+        },
+      });
+
+      // Stream completed successfully
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== currentSessionId) return s;
+          return {
+            ...s,
+            messages: s.messages.map((m) =>
+              m.id === assistantMsgId ? { ...m, isStreaming: false } : m
+            ),
+          };
+        })
+      );
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        // User stopped generation
+      } else {
+        console.error("Chat stream failed:", error);
+        // Mark message as error
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== currentSessionId) return s;
+            return {
+              ...s,
+              messages: s.messages.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      isStreaming: false,
+                      error: true,
+                      content:
+                        m.content ||
+                        `Error connecting to backend (${API_URL}): ${error.message || "Failed to fetch stream"}`,
+                    }
+                  : m
+              ),
+            };
+          })
+        );
+      }
+    } finally {
+      setIsLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="flex h-screen w-screen overflow-hidden bg-white text-zinc-900">
+      {/* Sidebar with chat history & sessions */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSelectSession={(id) => setCurrentSessionId(id)}
+        onNewChat={handleNewChat}
+        onDeleteSession={handleDeleteSession}
+      />
+
+      {/* Main Chat View Area */}
+      <div className="flex flex-col flex-1 h-full min-w-0 bg-white relative">
+        {/* Header */}
+        <ChatHeader
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onClearChat={handleClearChat}
+          sessionId={currentSession?.backendSessionId || null}
+          messageCount={messages.length}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+
+        {/* Message Container */}
+        <div className="flex-1 overflow-y-auto flex flex-col scrollbar-thin">
+          {messages.length === 0 ? (
+            <div className="flex-1" />
+          ) : (
+            <div className="flex-1 pb-4">
+              {messages.map((msg) => (
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  onRetry={(text) => handleSend(text)}
+                />
+              ))}
+              <div ref={messagesEndRef} className="h-4" />
+            </div>
+          )}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        {/* Floating / Fixed Bottom Input Area */}
+        <ChatInput
+          input={input}
+          setInput={setInput}
+          onSend={() => handleSend()}
+          onStop={handleStop}
+          isLoading={isLoading}
+        />
+      </div>
     </div>
   );
 }
