@@ -22,10 +22,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
   const renderFormattedContent = (content: string) => {
     if (!content && message.isStreaming) {
       return (
-        <span className="inline-flex items-center gap-1.5 py-1 text-zinc-400">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="text-xs">Thinking & streaming response...</span>
-        </span>
+        <div className="leading-relaxed text-sm md:text-[15px]">
+          <span className="inline-block w-1.5 h-4 bg-zinc-700 animate-pulse align-middle rounded-xs" />
+        </div>
       );
     }
 
@@ -59,6 +58,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
     return (
       <div className="space-y-2 leading-relaxed break-words text-sm md:text-[15px]">
         {parts.map((part, index) => {
+          const isLastPart = index === parts.length - 1;
+
           if (part.type === "code") {
             const firstLineBreak = part.value.indexOf("\n");
             let language = "";
@@ -90,13 +91,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
           return (
             <div key={index} className="whitespace-pre-wrap">
               {part.value}
+              {isLastPart && message.isStreaming && (
+                <span className="inline-block w-1.5 h-4 bg-zinc-700 ml-0.5 align-middle animate-pulse rounded-xs" />
+              )}
             </div>
           );
         })}
-
-        {message.isStreaming && (
-          <span className="inline-block w-2 h-4 bg-emerald-500 ml-1 translate-y-0.5 animate-pulse" />
-        )}
       </div>
     );
   };

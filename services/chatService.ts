@@ -66,27 +66,30 @@ export async function streamAgentChat({
           try {
             const data = JSON.parse(rawData);
 
+            // Check for done signal
+            if (data.type === "done") continue;
+
             // Handle session ID from backend
-            if (currentEvent === "session" && data.session_id) {
+            if ((currentEvent === "session" || data.type === "session") && data.session_id) {
               onSessionId?.(data.session_id);
             }
 
-            // Handle real-time text token
-            if (currentEvent === "delta" && data.content) {
-              accumulatedResponse += data.content;
-              onToken(data.content);
+            // Handle real-time text token (backend sends {"type": "delta", "text": "..."})
+            const token = data.text ?? data.content;
+            if (token !== undefined) {
+              accumulatedResponse += token;
+              onToken(token);
             }
           } catch {
             // Fallback for raw text streaming
-            if (currentEvent === "delta") {
-              accumulatedResponse += rawData;
-              onToken(rawData);
-            }
+            accumulatedResponse += rawData;
+            onToken(rawData);
           }
         }
       }
     }
 
+    console.log("Response:", accumulatedResponse);
     return accumulatedResponse;
   } finally {
     reader.releaseLock();

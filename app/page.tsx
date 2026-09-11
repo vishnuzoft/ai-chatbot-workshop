@@ -20,6 +20,8 @@ export default function ChatPage() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const isAutoScrollEnabled = useRef<boolean>(true);
 
   // Initialize or restore sessions from localStorage
   useEffect(() => {
@@ -61,16 +63,30 @@ export default function ChatPage() {
   const currentSession = sessions.find((s) => s.id === currentSessionId) || sessions[0];
   const messages = currentSession?.messages || [];
 
-  // Auto-scroll to bottom of messages
-  const scrollToBottom = (smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: smooth ? "smooth" : "auto",
-      block: "end",
-    });
+  // Auto-scroll to bottom of messages (instant during streaming, smooth on user action)
+  const scrollToBottom = (smooth = false) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (smooth) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    } else {
+      container.scrollTop = container.scrollHeight;
+    }
+  };
+
+  // Detect when user manually scrolls up to read earlier history
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    isAutoScrollEnabled.current = isNearBottom;
   };
 
   useEffect(() => {
-    scrollToBottom();
+    if (isAutoScrollEnabled.current) {
+      scrollToBottom(false);
+    }
   }, [messages]);
 
   // Create a new session
@@ -193,6 +209,8 @@ export default function ChatPage() {
     );
 
     setIsLoading(true);
+    isAutoScrollEnabled.current = true;
+    requestAnimationFrame(() => scrollToBottom(true));
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
@@ -301,7 +319,11 @@ export default function ChatPage() {
         />
 
         {/* Message Container */}
-        <div className="flex-1 overflow-y-auto flex flex-col scrollbar-thin">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto flex flex-col scrollbar-thin"
+        >
           {messages.length === 0 ? (
             <div className="flex-1" />
           ) : (
