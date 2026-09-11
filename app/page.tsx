@@ -1,15 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Message, ChatSession } from "@/types/chat";
-import { streamAgentChat } from "@/services/chatService";
+import { ChatSession } from "@/types/chat";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 
 const STORAGE_KEY = "workshop_ai_chat_sessions";
-const API_URL = process.env.NEXT_PUBLIC_CHAT_API_URL || "/api/chat";
 
 export default function ChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -153,128 +151,11 @@ export default function ChatPage() {
 
     setInput("");
 
-    // 1. Prepare User Message
-    const userMsg: Message = {
-      id: "msg-" + Date.now(),
-      role: "user",
-      content: textToSend,
-      createdAt: Date.now(),
-    };
-
-    // 2. Prepare Assistant Placeholder Message for streaming
-    const assistantMsgId = "msg-" + (Date.now() + 1);
-    const assistantMsg: Message = {
-      id: assistantMsgId,
-      role: "assistant",
-      content: "",
-      createdAt: Date.now(),
-      isStreaming: true,
-    };
-
-    // Derive chat title if this is the first user message
-    const isFirstMessage = messages.length === 0;
-    const chatTitle = isFirstMessage
-      ? textToSend.length > 30
-        ? textToSend.substring(0, 30) + "..."
-        : textToSend
-      : currentSession.title;
-
-    // Update session with new user and empty streaming assistant message
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.id !== currentSessionId) return s;
-        return {
-          ...s,
-          title: chatTitle,
-          messages: [...s.messages, userMsg, assistantMsg],
-          updatedAt: Date.now(),
-        };
-      })
-    );
-
-    setIsLoading(true);
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    try {
-      // 3. Call streaming service
-      await streamAgentChat({
-        message: textToSend,
-        sessionId: currentSession?.backendSessionId || null,
-        apiUrl: API_URL,
-        signal: abortController.signal,
-
-        // Token callback: append chunk to active assistant message
-        onToken: (chunk: string) => {
-          setSessions((prev) =>
-            prev.map((s) => {
-              if (s.id !== currentSessionId) return s;
-              return {
-                ...s,
-                messages: s.messages.map((m) => {
-                  if (m.id === assistantMsgId) {
-                    return { ...m, content: m.content + chunk };
-                  }
-                  return m;
-                }),
-              };
-            })
-          );
-        },
-
-        // Session callback: retain session_id across turns
-        onSessionId: (newSid: string) => {
-          setSessions((prev) =>
-            prev.map((s) =>
-              s.id === currentSessionId ? { ...s, backendSessionId: newSid } : s
-            )
-          );
-        },
-      });
-
-      // Stream completed successfully
-      setSessions((prev) =>
-        prev.map((s) => {
-          if (s.id !== currentSessionId) return s;
-          return {
-            ...s,
-            messages: s.messages.map((m) =>
-              m.id === assistantMsgId ? { ...m, isStreaming: false } : m
-            ),
-          };
-        })
-      );
-    } catch (error: any) {
-      if (error.name === "AbortError") {
-        // User stopped generation
-      } else {
-        console.error("Chat stream failed:", error);
-        // Mark message as error
-        setSessions((prev) =>
-          prev.map((s) => {
-            if (s.id !== currentSessionId) return s;
-            return {
-              ...s,
-              messages: s.messages.map((m) =>
-                m.id === assistantMsgId
-                  ? {
-                      ...m,
-                      isStreaming: false,
-                      error: true,
-                      content:
-                        m.content ||
-                        `Error connecting to backend (${API_URL}): ${error.message || "Failed to fetch stream"}`,
-                    }
-                  : m
-              ),
-            };
-          })
-        );
-      }
-    } finally {
-      setIsLoading(false);
-      abortControllerRef.current = null;
-    }
+    // TODO
+    // 1. Create a user Message object and append it to the current session.
+    // 2. Create a placeholder assistant Message with `isStreaming: true`.
+    // 3. Call `streamAgentChat()` from services/chatService.ts.
+    // 4. Update the assistant message as each token arrives in `onToken()`.
   };
 
   return (

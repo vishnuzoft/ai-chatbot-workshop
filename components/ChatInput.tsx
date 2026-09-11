@@ -52,34 +52,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           className="w-full resize-none bg-transparent px-4 pt-3.5 pb-12 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-hidden disabled:opacity-50 min-h-[52px] max-h-[200px]"
         />
 
+        {/* TODO: Create and integrate your SendButton component here */}
         <div className="absolute right-3 bottom-2.5 flex items-center gap-2">
-          {isLoading ? (
-            <button
-              onClick={onStop}
-              type="button"
-              className="flex items-center justify-center w-8 h-8 rounded-full bg-black text-white hover:bg-zinc-800 transition shadow-xs"
-              title="Stop generating"
-            >
-              {/* Square Stop Icon */}
-              <div className="w-2.5 h-2.5 bg-current rounded-xs" />
-            </button>
-          ) : (
-            <button
-              onClick={onSend}
-              disabled={!input.trim() || disabled}
-              type="button"
-              className={`flex items-center justify-center w-8 h-8 rounded-full transition shadow-xs ${
-                input.trim()
-                  ? "bg-black text-white hover:bg-zinc-800"
-                  : "bg-zinc-200 text-zinc-400 cursor-not-allowed"
-              }`}
-              title="Send message (Enter)"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
-            </button>
-          )}
+          {/* Send button goes here */}
         </div>
       </div>
 
