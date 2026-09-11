@@ -147,9 +147,6 @@ export default function ChatPage() {
     );
   };
 
-  /* ========================================================================= */
-  /* WORKSHOP CORE LOGIC: SEND MESSAGE & CONSUME BACKEND SSE STREAM           */
-  /* ========================================================================= */
   const handleSend = async (overridePrompt?: string) => {
     const textToSend = (overridePrompt || input).trim();
     if (!textToSend || isLoading) return;

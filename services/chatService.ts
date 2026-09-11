@@ -7,17 +7,7 @@ export interface StreamChatOptions {
   onSessionId?: (sessionId: string) => void;
 }
 
-/**
- * =====================================================================
- * Workshop Task: Consume Server-Sent Events (SSE) Stream
- * =====================================================================
- * 1. Sends a POST request with `Accept: text/event-stream`.
- * 2. Reads binary chunks via Web Streams API (ReadableStream + TextDecoder).
- * 3. Parses SSE frames:
- *    - `event: session` -> extracts session_id
- *    - `event: delta`   -> extracts content token and emits to UI
- * =====================================================================
- */
+// Sends user message to the backend and streams the response
 export async function streamAgentChat({
   message,
   sessionId = null,

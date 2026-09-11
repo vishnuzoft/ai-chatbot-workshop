@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Chatbot | Workshop Edition",
-  description: "ChatGPT-like conversational UI with custom SSE streaming backend",
+  title: "AI Chatbot",
+  description: "Next.js chatbot interface",
 };
 
 export default function RootLayout({
