@@ -1,21 +1,14 @@
 import { NextRequest } from "next/server";
 
-const TARGET_BACKEND_URL =
-  process.env.BACKEND_CHAT_API_URL ||
-  process.env.NEXT_PUBLIC_CHAT_API_URL ||
-  "http://192.168.68.111:8070/api/agent/chat";
+const TARGET_BACKEND_URL = process.env.BACKEND_CHAT_API_URL;
 
-/**
- * Next.js Server Proxy Route: /api/chat
- *
- * Why this exists:
- * Browsers block client-side fetch from http://localhost:3000 to http://192.168.68.111:8070
- * due to CORS (Cross-Origin Resource Sharing) restrictions.
- *
- * This server-side route forwards requests server-to-server (like curl) and pipes
- * the SSE text/event-stream directly back to the client with zero CORS issues!
- */
 export async function POST(req: NextRequest) {
+  if (!TARGET_BACKEND_URL) {
+    return new Response("BACKEND_CHAT_API_URL environment variable is not configured in .env.local", {
+      status: 500,
+    });
+  }
+
   try {
     const body = await req.json();
 
