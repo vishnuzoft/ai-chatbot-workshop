@@ -15,7 +15,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   input,
   setInput,
   onSend,
-  onStop,
   isLoading,
   disabled = false,
 }) => {
