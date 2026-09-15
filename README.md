@@ -21,7 +21,7 @@ cp .env.example .env.local
 Set your backend endpoint in `.env.local`:
 
 ```env
-BACKEND_CHAT_API_URL=https://agent.aigosys.com/api/agent/chat
+BACKEND_CHAT_API_URL=https://your-agent-backend-url/api/agent/chat
 NEXT_PUBLIC_CHAT_API_URL=/api/chat
 ```
 

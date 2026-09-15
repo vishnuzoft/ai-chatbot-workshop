@@ -103,20 +103,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
 
   return (
     <div
-      className={`w-full py-5 px-4 md:px-6 transition-colors ${
-        isUser
+      className={`w-full py-5 px-4 md:px-6 transition-colors ${isUser
           ? "bg-white"
           : "bg-[#f9f9f9] border-y border-zinc-100"
-      }`}
+        }`}
     >
       <div className="max-w-3xl mx-auto flex gap-4 items-start group">
         {/* Avatar */}
         <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold shadow-xs ${
-            isUser
+          className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold shadow-xs ${isUser
               ? "bg-zinc-900 text-white"
               : "bg-emerald-600 text-white"
-          }`}
+            }`}
         >
           {isUser ? (
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
