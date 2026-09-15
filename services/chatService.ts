@@ -1,3 +1,5 @@
+import { ToolCallInfo } from "@/types/chat";
+
 export interface StreamChatOptions {
   message: string;
   sessionId?: string | null;
@@ -5,6 +7,7 @@ export interface StreamChatOptions {
   signal?: AbortSignal;
   onToken: (token: string) => void;
   onSessionId?: (sessionId: string) => void;
+  onToolCall?: (tool: ToolCallInfo) => void;
 }
 
 // Sends user message to the backend and streams the response
@@ -15,6 +18,7 @@ export async function streamAgentChat({
   signal,
   onToken,
   onSessionId,
+  onToolCall,
 }: StreamChatOptions): Promise<string> {
   // Step 1: Make HTTP request expecting a stream
   const response = await fetch(apiUrl, {
@@ -68,6 +72,21 @@ export async function streamAgentChat({
 
             // Check for done signal
             if (data.type === "done") continue;
+
+            // Handle tool calling
+            if (data.type === "tool_call") {
+              onToolCall?.({
+                name: data.name || "tool",
+                args: data.args || data.arguments,
+                state: "running",
+              });
+            } else if (data.type === "tool_result") {
+              onToolCall?.({
+                name: data.name || "tool",
+                args: data.args || data.result,
+                state: "done",
+              });
+            }
 
             // Handle session ID from backend
             if ((currentEvent === "session" || data.type === "session") && data.session_id) {

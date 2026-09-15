@@ -248,6 +248,21 @@ export default function ChatPage() {
             )
           );
         },
+
+        // Tool calling callback: display live tool calling indicator
+        onToolCall: (toolCall) => {
+          setSessions((prev) =>
+            prev.map((s) => {
+              if (s.id !== currentSessionId) return s;
+              return {
+                ...s,
+                messages: s.messages.map((m) =>
+                  m.id === assistantMsgId ? { ...m, toolCall } : m
+                ),
+              };
+            })
+          );
+        },
       });
 
       // Stream completed successfully

@@ -1,3 +1,9 @@
+export interface ToolCallInfo {
+  name: string;
+  args?: any;
+  state: 'running' | 'done';
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -5,6 +11,7 @@ export interface Message {
   createdAt: number;
   isStreaming?: boolean;
   error?: boolean;
+  toolCall?: ToolCallInfo;
 }
 
 export interface ChatSession {

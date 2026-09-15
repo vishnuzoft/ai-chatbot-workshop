@@ -8,6 +8,60 @@ interface ChatMessageProps {
   onRetry?: (messageText: string) => void;
 }
 
+// Formats tool calling indicators nicely
+const formatToolName = (name?: string, args?: any, state?: string) => {
+  if (!name) return state === "running" ? "Searching" : "Searched";
+  let label = name.replace(/_/g, " ");
+  if (name === "search_events") label = "Searching events";
+  else if (name === "generate_image") label = "Generating image";
+  else if (name === "web_search") label = "Searching web";
+
+  if (state === "done") {
+    if (name === "search_events") label = "Searched events";
+    else if (name === "generate_image") label = "Generated image";
+    else if (name === "web_search") label = "Searched web";
+  }
+
+  if (args?.query) {
+    return `${label} for "${args.query}"`;
+  }
+  return label;
+};
+
+// Formats inline markdown: **bold**, `code`, *italic*
+const renderInlineMarkdown = (text: string): React.ReactNode => {
+  const tokenRegex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+  const parts = text.split(tokenRegex);
+
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-semibold text-zinc-900">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return (
+        <code
+          key={i}
+          className="px-1.5 py-0.5 rounded bg-zinc-100 font-mono text-xs text-zinc-800 border border-zinc-200/70"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return (
+        <em key={i} className="italic text-zinc-700">
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
+    return part;
+  });
+};
+
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) => {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
@@ -18,7 +72,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Helper to render text with basic line breaks and code block formatting
+  // Helper to render text with markdown line breaks, lists, bold text, and code blocks
   const renderFormattedContent = (content: string) => {
     if (!content && message.isStreaming) {
       return (
@@ -30,7 +84,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
 
     // Split code blocks (```code```)
     const codeBlockRegex = /```([\s\S]*?)```/g;
-    const parts = [];
+    const parts: { type: "text" | "code"; value: string }[] = [];
     let lastIndex = 0;
     let match;
 
@@ -88,12 +142,78 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
             );
           }
 
+          // Markdown text rendering (bullets, bold, headings, paragraphs)
+          const lines = part.value.split("\n");
+
           return (
-            <div key={index} className="whitespace-pre-wrap">
-              {part.value}
-              {isLastPart && message.isStreaming && (
-                <span className="inline-block w-2 h-2 rounded-full bg-zinc-900 ml-1.5 align-middle animate-pulse" />
-              )}
+            <div key={index} className="space-y-1.5">
+              {lines.map((line, lineIndex) => {
+                const isLastLine = isLastPart && lineIndex === lines.length - 1;
+                const trimmed = line.trim();
+
+                // Empty line
+                if (!trimmed) {
+                  return <div key={lineIndex} className="h-1" />;
+                }
+
+                // Heading: ### Heading or ## Heading or # Heading
+                const headingMatch = line.match(/^(#{1,3})\s+(.*)/);
+                if (headingMatch) {
+                  const headingText = headingMatch[2];
+                  return (
+                    <h4 key={lineIndex} className="font-semibold text-zinc-900 text-sm md:text-[15px] mt-2 mb-0.5">
+                      {renderInlineMarkdown(headingText)}
+                      {isLastLine && message.isStreaming && (
+                        <span className="inline-block w-2 h-2 rounded-full bg-zinc-900 ml-1.5 align-middle animate-pulse" />
+                      )}
+                    </h4>
+                  );
+                }
+
+                // Bullet list: - item or * item
+                if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+                  const itemText = line.replace(/^\s*[-*]\s+/, "");
+                  return (
+                    <div key={lineIndex} className="flex items-start gap-2.5 ml-1 my-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 mt-2 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        {renderInlineMarkdown(itemText)}
+                        {isLastLine && message.isStreaming && (
+                          <span className="inline-block w-2 h-2 rounded-full bg-zinc-900 ml-1.5 align-middle animate-pulse" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Numbered list: 1. item
+                const numMatch = line.match(/^(\s*\d+\.)\s+(.*)/);
+                if (numMatch) {
+                  const numPrefix = numMatch[1];
+                  const itemText = numMatch[2];
+                  return (
+                    <div key={lineIndex} className="flex items-start gap-2 ml-1 my-0.5">
+                      <span className="font-medium text-zinc-500 shrink-0">{numPrefix}</span>
+                      <div className="flex-1 min-w-0">
+                        {renderInlineMarkdown(itemText)}
+                        {isLastLine && message.isStreaming && (
+                          <span className="inline-block w-2 h-2 rounded-full bg-zinc-900 ml-1.5 align-middle animate-pulse" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Regular line
+                return (
+                  <div key={lineIndex} className="leading-relaxed">
+                    {renderInlineMarkdown(line)}
+                    {isLastLine && message.isStreaming && (
+                      <span className="inline-block w-2 h-2 rounded-full bg-zinc-900 ml-1.5 align-middle animate-pulse" />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -163,6 +283,29 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
               </button>
             )}
           </div>
+
+          {/* ChatGPT-style Tool Call Status Pill */}
+          {message.toolCall && (
+            <div className="mb-2.5">
+              {message.toolCall.state === "running" ? (
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 border border-zinc-200/90 text-xs text-zinc-700 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping shrink-0" />
+                  <span className="font-medium capitalize">
+                    {formatToolName(message.toolCall.name, message.toolCall.args, "running")}...
+                  </span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-zinc-100/80 border border-zinc-200/70 text-[11px] text-zinc-500">
+                  <svg className="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="capitalize">
+                    {formatToolName(message.toolCall.name, message.toolCall.args, "done")}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Content Body */}
           <div className="text-zinc-900 leading-relaxed">
